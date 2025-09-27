@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Xem log realtime</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1e1e1e;
+            color: #dcdcdc;
+            margin: 0;
+            padding: 0;
+        }
+        #controls {
+            padding: 10px;
+            background: #333;
+        }
+        #logs {
+            white-space: pre-wrap;
+            padding: 10px;
+            height: 90vh;
+            overflow-y: auto;
+            line-height: 1.4;
+        }
+        .line {
+            margin: 0;
+        }
+        .error { color: #ff6b6b; }
+        .info { color: #6bc1ff; }
+    </style>
+</head>
+<body>
+<div id="controls">
+    <label>PID: <input type="number" id="pid" value="123"></label>
+    <button onclick="connect()">Kết nối log</button>
+    <button onclick="disconnect()">Ngắt</button>
+</div>
+<div id="logs"></div>
+
+<script>
+    let es = null;
+    const logsDiv = document.getElementById("logs");
+
+    function appendLog(line, cls="") {
+        const el = document.createElement("div");
+        el.textContent = line;
+        if (cls) el.classList.add(cls);
+        logsDiv.appendChild(el);
+        logsDiv.scrollTop = logsDiv.scrollHeight; // auto scroll
+    }
+
+    function connect() {
+        const pid = document.getElementById("pid").value;
+        if (!pid) {
+            alert("Nhập PID trước!");
+            return;
+        }
+        if (es) es.close();
+
+        es = new EventSource(`/logs/${pid}?last=50`);
+        appendLog(`--- Kết nối tới PID ${pid} ---`, "info");
+
+        es.onmessage = (e) => {
+            appendLog(e.data);
+        };
+
+        es.onerror = (e) => {
+            appendLog("[Lỗi SSE hoặc mất kết nối]", "error");
+            es.close();
+            es = null;
+        };
+    }
+
+    function disconnect() {
+        if (es) {
+            es.close();
+            es = null;
+            appendLog("--- Đã ngắt kết nối ---", "info");
+        }
+    }
+</script>
+</body>
+</html>
