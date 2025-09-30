@@ -13,7 +13,7 @@
     "node-fetch": "^3.3.2",
     "p-limit": "^7.1.1",
     "proxy-chain": "^2.5.9",
-    "puppeteer": "^24.22.0",
+    "puppeteer": "^24.22.3",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "puppeteer-real-browser": "^1.4.4",
