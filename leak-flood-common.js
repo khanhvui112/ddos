@@ -292,8 +292,6 @@ async function go() {
                                     ":authority": url.hostname,
                                     ":scheme": "https",
                                     ":path": patch, // Thử root path trước
-                                    // "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36", // Fixed UA
-                                    // "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                                     "cookie": `sucuricp_tfca_6e453141ae697f9f78b18427b4c54df1=1; ${cookieOfProxy}`,
                                     // "accept-language": "ru,q=0.4",
                                     "sec-ch-ua": `\"Chromium\";v=\"${version}\", \"Not(A:Brand\";v=\"${ver}\", \"Google Chrome\";v=\"${version}\"`,
