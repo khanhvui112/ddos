@@ -332,7 +332,7 @@ function msUntilNext(hour, minute = 0) {
     if (target <= now) target.setDate(target.getDate() + 1);
     return target - now;
 }
-let host = 'https://bavarian-outfitters.de/';
+let host = 'https://api-sit.nonprod.cardoctor.com.vn/vendor/playground';
 run(host)
 // const delay = msUntilNext(13, 0); // 13:00
 // console.log(`Sẽ chạy sau ${Math.round(delay/1000)} giây (lúc 13:00).`);
