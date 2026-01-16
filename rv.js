@@ -1,158 +1,211 @@
-import vm from "vm";
+const {connect} = require("puppeteer-real-browser");
+const fs = require("fs");
 
-const {HttpsProxyAgent} = require("https-proxy-agent");
-const axios = require("axios");
-if (url.host.includes("bavarian-outfitters.de")) {
-    let linkAll = [
-        "/en/",
-        "/produkt/dirndl-inkl-bluse/",
-        "/produkt/lederhose/",
-        "/produkt/lederhose-set/",
-        "/produkt/haferlschuhe/",
-        "/lederhosenverleih-preise/",
-        "/lederhosenverleih-fuer-firmenkunden/",
-        "/kollektion/",
-        "/blog/",
-        "/kontakt/",
-        "/shop",
-        "/warenkorb-2/",
-        "/oeffnungszeiten",
-        "/lederhosenverleih-fuer-firmenkunden",
-        "/shop/",
-        "/lederhosenverleih-preise",
-        "/fruehlingsfest-2025-muenchen/",
-        "/2025/02/",
-        "/produkt/lederhose",
-        "/produkt/lederhose-set",
-        "/impressum/",
-        "/datenschutzerklaerung/",
-        "/en/pricing/",
-        "/dirndl-mieten",
-        "/produkt/haferlschuhe",
-        "/en/gallery/",
-        "/en/blog/",
-        "/category/unkategorisiert/",
-        "/author/constantin/",
-        "/fruehlingsfest-2024-uebernachtungstipps/",
-        "/2024/02/",
-        "/author/volker_quirling/",
-        "/lederhose-leihen/",
-        "/wann-beginnt-das-fruehlingsfest-2024-in-muenchen/",
-        "/2024/01/",
-        "/trachtenverleih-und-wirtshauswiesn-2020/",
-        "/2020/09/",
-        "/2016-die-wiesn-ist-vorbei/",
-        "/2016/10/",
-        "/tracht-und-kultur-in-muenchen/",
-        "/2016/05/",
-        "/go-kart-fahren-auf-dem-fruhlingsfest/",
-        "/2016/02/",
-        "/7-fakten-zur-auer-dult/",
-        "/oktoberfest-countdown/",
-        "/2016/01/",
-        "/blog/page/2/"
-    ];
-    function getRandomPath(arr) {
-        return arr[Math.floor(Math.random() * arr.length)];
-    }
-    patch = getRandomPath(linkAll);
+function random_int(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-async function getCookieByProxy(proxy, cookie = '') {
-    try {
-        // console.log(proxy)
-        const [host, port, user, pass] = proxy.split(':');
-        let agent;
-        if (user && pass) {
-            agent = new HttpsProxyAgent(`http://${user}:${pass}@${host}:${port}`);
-        } else {
-            agent = new HttpsProxyAgent(`http://${host}:${port}`);
-        }
+async function getCookieCloudflare(proxy) {
+    let options = {
+        headless: false,
+        turnstile: true,
+        args: [],
+        customConfig: {},
+        connectOption: {},
+        ignoreAllFlags: false,
+    };
 
-        const resp = await axios.get('https://bavarian-outfitters.de/', {
-            httpsAgent: agent,
-            timeout: 10000,
-            responseType: 'text',
-            maxRedirects: 0,               // IMPORTANT: không follow redirect
-            validateStatus: () => true,    // nhận tất cả status, không throw tự động
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Cookie": "sucuricp_tfca_6e453141ae697f9f78b18427b4c54df1=1; " + cookie
-            }
-        });
-        const html = typeof resp.data === 'string' ? resp.data : '';
-
-        function getCookie(html) {
-            // 1. Trích xuất giá trị S='...'
-            const re = /S\s*=\s*'([^']+)'/i;
-            const m = html.match(re);
-            if (!m) {
-                console.error('Không tìm thấy chuỗi S trong HTML');
-                process.exit(1);
-            }
-            const S = m[1];
-
-            let decoded;
-            try {
-                decoded = Buffer.from(S, 'base64').toString('utf8');
-            } catch (err) {
-                console.error('Lỗi khi decode Base64:', err.message);
-                process.exit(1);
-            }
-
-
-            const sandbox = {
-                // document: có getter/setter cookie để bắt mọi gán document.cookie = '...'
-                document: {},
-                location: {
-                    reloaded: false,
-                    reload: () => {
-                        // chặn reload thật và chỉ ghi lại là có yêu cầu reload
-                        sandbox.location.reloaded = true;
-                        // console.warn('[sandbox] location.reload() called (blocked)');
-                    }
-                },
-                console: console,
-                // Cấp một vài global cần thiết (String, etc.)
-                String: String,
-                // Để an toàn hơn, không cung cấp eval/file system, network, process, require...
+    if (proxy) {
+        const proxyParts = proxy.split(":");
+        if (proxyParts.length === 2) {
+            // dạng host:port
+            const [proxyHost, proxyPort] = proxyParts;
+            options.proxy = {
+                host: proxyHost,
+                port: parseInt(proxyPort, 10),
             };
+        } else if (proxyParts.length === 4) {
+            // dạng host:port:user:pass
+            const [proxyHost, proxyPort, proxyUser, proxyPass] = proxyParts;
+            options.proxy = {
+                host: proxyHost,
+                port: parseInt(proxyPort, 10),
+                username: proxyUser,
+                password: proxyPass,
+            };
+        }
+    }
 
-            Object.defineProperty(sandbox.document, 'cookie', {
-                configurable: true,
-                enumerable: true,
-                get: function () {
-                    return this._cookie || '';
-                },
-                set: function (val) {
-                    // lưu cookie vào trường _cookie và cũng ghi vào sandbox.cookieSet
-                    this._cookie = (this._cookie ? (this._cookie + '; ' + val) : val);
-                    sandbox.cookieSet = this._cookie;
-                    // console.log('[sandbox] document.cookie set to ->', val);
+    const {browser, page} = await connect(options);
+
+    await page.setExtraHTTPHeaders({
+        referer: "https://www.google.com/",
+    });
+
+    var userAgent = await page.evaluate(() => {
+        return navigator.userAgent;
+    });
+    const iso = '2026-10-03T11:25:10.557Z';
+    const expiresInSeconds = Math.floor(new Date(iso).getTime() / 1000);
+    userAgent = userAgent.replace("Headless", "");
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36');
+    const cookie1 = {
+        name: "cf_clearance",
+        value: "9heIHw2DEi4twhZXDTDyaOfOHJDBjKqb_nJkj5igoLw-1759411713-1.2.1.1-QuBG79sQHKgVNckyoHSeYhIeaXeKz0Y6wLtyUAWj.jZHTBbbdy1RE0.eivXnQp8L2kxWWPl8aat1kb.h9Yuyv13Tdkit2f0w7SSDfvHVgT08rxbTuY_Ue_jQZBAPesgq171dbC26PUXPAkJRSDDF8OETHiv0hXjOQf.0vlawqqRcj2P.M.XvxwbPzbxt7_Tg_szZcW0_Wip0gE84JDg.bRB5jYTV1GtuGMdpOZ.a8h8",
+        domain: ".bavarian-outfitters.de",
+        path: "/",
+        httpOnly: true,
+        secure: true,
+        sameSite: "None",
+        expires: expiresInSeconds
+    };
+
+    await page.setCookie(cookie1);
+    // Điều hướng
+    await page.goto("https://bavarian-outfitters.de", {
+        waitUntil: "domcontentloaded",
+        timeout: 60000,
+    });
+
+    // Lấy cookie + userAgent
+    async function getCookies(page) {
+        return new Promise((resolve, reject) => {
+            let inl = setInterval(async () => {
+                try {
+                    const cookies = await page.cookies();
+                    const userAgent = await page.browser().userAgent();
+                    const cf = cookies.find(c => c.name === "cf_clearance");
+                    if (cf) {
+                        clearInterval(inl);
+                        resolve({
+                            cookie: cf.value,
+                            userAgent,
+                        });
+                    }
+                } catch (err) {
+                    clearInterval(inl);
+                    reject(err);
                 }
-            });
+            }, 200);
+        });
+    }
 
-// 4. Tạo context và thực thi decoded script trong VM có timeout
-            const context = vm.createContext(sandbox, {name: 'sucuri-sandbox'});
+    const cookie = await getCookies(page);
+    console.log("Result:", cookie);
 
-            try {
-                const script = new vm.Script(decoded, {filename: 'decoded.js'});
-                script.runInContext(context, {timeout: 2000}); // timeout ms
-            } catch (err) {
-                console.error('Lỗi khi chạy script trong sandbox:', err && err.stack ? err.stack : err);
+    if (cookie) {
+        // await browser.close();
+        return cookie;
+    }
+    return null;
+}
+
+async function test(proxyOrigin) {
+    let proxy = proxyOrigin.split(':')
+    const { browser, page } = await connect({
+        headless: false,
+
+        args: [],
+
+        customConfig: {},
+
+        turnstile: true,
+
+        connectOption: {},
+        disableXvfb: false,
+        ignoreAllFlags: false,
+        proxy:{
+            host:proxy[0],
+            port:proxy[1],
+            username:proxy[2],
+            password:proxy[3]
+        }
+    });
+    /*const iso = '2026-10-03T11:25:10.557Z';
+    const expiresInSeconds = Math.floor(new Date(iso).getTime() / 1000);
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36');
+    const cookie1 = {
+        name: "cf_clearance",
+        value: "zq9mDFFFaoYLgUF2KLZOAU1tUHtwOZ0dbYNRev9mjAA-1759426639-1.2.1.1-UUEla6Eq1oc2RRfATF6qPrcuZzUdM6PkNGzTfeQwNxvtzdvARm1uHMRtQUozhPxIUA0lDfrcyUrYXjv2rvSVlrooAt7vCKil86ZzBuKUcuXYzWi4pgI0Sp7cdRm38rk9kgwN44Yc_CxrOTatU49t97Rng.HxMzdqA3_C81H_WJoQnVlw4LTjbmbCE_0MH0szGpad_3_Wd_fYPtsFq0Gypo_Wkly1b8pxh6Ghcgjfxfk",
+        domain: ".bavarian-outfitters.de",
+        path: "/",
+        httpOnly: true,
+        secure: true,
+        sameSite: "None",
+        expires: expiresInSeconds
+    };
+
+    await page.setCookie(cookie1);*/
+    await page.goto("https://bavarian-outfitters.de/");
+
+    async function getCookies(page) {
+        return new Promise((resolve, reject) => {
+            let inl = setInterval(async () => {
+                try {
+                    const cookies = await page.cookies();
+                    const userAgent = await page.browser().userAgent();
+                    const cf = cookies.find(c => c.name === "cf_clearance");
+                    if (cf) {
+                        clearInterval(inl);
+                        resolve({
+                            host: proxyOrigin,
+                            "user-agent": userAgent,
+                            cookie: cf.value
+                        });
+                    }
+                } catch (err) {
+                    clearInterval(inl);
+                    reject(err);
+                }
+            }, 200);
+        });
+    }
+
+    const cookie = await getCookies(page);
+    console.log("Result:", cookie);
+    await browser.close();
+    if (cookie) {
+        return cookie;
+    }
+    return null;
+}
+function saveResult(newObj) {
+    const file = "cookies.json";
+    let arr = [];
+
+    if (fs.existsSync(file)) {
+        try {
+            const data = fs.readFileSync(file, "utf8").trim();
+            if (data) {
+                arr = JSON.parse(data); // đọc mảng cũ
             }
-
-            return sandbox.cookieSet.split(';')[0];
+        } catch (e) {
+            console.error("File parse error, reset to []");
+            arr = [];
         }
+    }
 
-        if (resp.status === 307 || /sucuri_cloudproxy_js/i.test(html)) {
-            // console.log('Get ccookie')
-            return getCookie(html);
+    arr.push(newObj); // thêm object mới
+
+    fs.writeFileSync(file, JSON.stringify(arr, null, 2), "utf8");
+}
+async function crawlProxy() {
+    const pxfine = fs
+        .readFileSync('1000_ger.txt', "utf8")
+        .replace(/\r/g, "")
+        .split("\n");
+    for (let i = 0; i < pxfine.length; i++) {
+        try {
+            const res = await test(pxfine[i]);
+            if (res) {
+                saveResult(res); // lưu luôn sau khi lấy được
+                console.log("Saved:", res.host);
+            }
+        } catch (err) {
+            console.error("Error proxy:", pxfine[i], err.message);
         }
-        return 'sucess';
-    } catch (err) {
-        // console.log(err.statusCode)
-        return 'error';
     }
 }
-let cookieOfProxy = await getCookieByProxy(selectedProxy, '');
+
+crawlProxy()
+// test('rp.scrapegw.com:6060:vviu6vbhat33r76-odds-6+100-isp-1014:hu5j45zeu7ezs11');
+// getCookieCloudflare('rp.scrapegw.com:6060:vviu6vbhat33r76-odds-5+100-country-us-state-florida-session-s7nv74xhsy:hu5j45zeu7ezs11')

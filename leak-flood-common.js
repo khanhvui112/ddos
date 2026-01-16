@@ -11,6 +11,10 @@ const { exec } = require("child_process");
 const {HttpsProxyAgent} = require("https-proxy-agent");
 const axios = require("axios");
 
+const {connect} = require("puppeteer-real-browser");
+const {FingerprintInjector} = require("fingerprint-injector");
+const {FingerprintGenerator} = require("fingerprint-generator");
+
 require("events").EventEmitter.defaultMaxListeners = Number.MAX_VALUE;
 
 process.setMaxListeners(0);
@@ -278,7 +282,9 @@ function go() {
                                 if (enableRandomPatch && enableRandomPatch === '--enable') {
                                     patch = pathRandom;
                                 }
+
                                 let cookieOfProxy = ''
+
                                 if (url.host.includes("bavarian-outfitters.de")) {
                                     let linkAll = [
                                         "/en/",
@@ -434,7 +440,7 @@ function go() {
                                     cookieOfProxy = await getCookieByProxy(selectedProxy, '');
                                 }
 
-                                const headers = Object.entries({
+                                let headerConfig = {
                                     ":method": "GET",
                                     ":authority": url.hostname,
                                     ":scheme": "https",
@@ -455,7 +461,118 @@ function go() {
                                             ]
                                     },q=0.${Math.floor(Math.random() * 9) + 1}`,
                                     referer: `https://www.google.com/`,
-                                });
+                                }
+                                if (url.host.includes("billvn.net")) {
+                                    patch = `/intro02.mp4?v=${Math.random()
+                                        .toString(36)
+                                        .substring(2)}&id=${ra()}`;
+                                    // cookieOfProxy = `intro02.mp4`
+                                    function random_int(min, max) {
+                                        return Math.floor(Math.random() * (max - min + 1)) + min;
+                                    }
+
+                                    async function getCookieCloudflare(proxy) {
+                                        let options = {
+                                            headless: false,
+                                            turnstile: true,
+                                            args: [],
+                                            customConfig: {},
+                                            connectOption: {},
+                                            ignoreAllFlags: false,
+                                        };
+
+                                        if (proxy) {
+                                            const proxyParts = proxy.split(":");
+                                            if (proxyParts.length === 2) {
+                                                // dạng host:port
+                                                const [proxyHost, proxyPort] = proxyParts;
+                                                options.proxy = {
+                                                    host: proxyHost,
+                                                    port: parseInt(proxyPort, 10),
+                                                };
+                                            } else if (proxyParts.length === 4) {
+                                                // dạng host:port:user:pass
+                                                const [proxyHost, proxyPort, proxyUser, proxyPass] = proxyParts;
+                                                options.proxy = {
+                                                    host: proxyHost,
+                                                    port: parseInt(proxyPort, 10),
+                                                    username: proxyUser,
+                                                    password: proxyPass,
+                                                };
+                                            }
+                                        }
+
+                                        const {browser, page} = await connect(options);
+
+                                        // Fingerprint
+                                        const fingerprintInjector = new FingerprintInjector();
+                                        const fingerprintGenerator = new FingerprintGenerator({
+                                            devices: ["desktop"],
+                                            browsers: [{name: "chrome", minVersion: random_int(122, 126)}],
+                                            operatingSystems: ["windows"],
+                                        });
+
+                                        const fingerprint = fingerprintGenerator.getFingerprint();
+                                        await fingerprintInjector.attachFingerprintToPuppeteer(page, fingerprint);
+
+                                        await page.setExtraHTTPHeaders({
+                                            referer: "https://www.google.com/",
+                                        });
+
+                                        var userAgent = await page.evaluate(() => {
+                                            return navigator.userAgent;
+                                        });
+
+                                        userAgent = userAgent.replace("Headless", "");
+                                        await page.setUserAgent(userAgent);
+
+                                        // Điều hướng
+                                        await page.goto("https://billvn.net/", {
+                                            waitUntil: "domcontentloaded",
+                                            timeout: 20000,
+                                        });
+
+                                        // Lấy cookie + userAgent
+                                        async function getCookies(page) {
+                                            return new Promise((resolve, reject) => {
+                                                let inl = setInterval(async () => {
+                                                    try {
+                                                        const cookies = await page.cookies();
+                                                        const userAgent = await page.browser().userAgent();
+                                                        const cf = cookies.find(c => c.name === "cf_clearance");
+                                                        if (cf) {
+                                                            clearInterval(inl);
+                                                            resolve({
+                                                                cookie: cf.value,
+                                                                userAgent,
+                                                            });
+                                                        }
+                                                    } catch (err) {
+                                                        clearInterval(inl);
+                                                        reject(err);
+                                                    }
+                                                }, 200);
+                                            });
+                                        }
+
+                                        const cookie = await getCookies(page);
+                                        console.log("Result:", cookie);
+
+                                        if (cookie) {
+                                            await browser.close();
+                                            return cookie;
+                                        }
+                                        return null;
+                                    }
+
+                                    let cookieJSON = await getCookieCloudflare(selectedProxy);
+                                    if (cookieJSON) {
+                                        headerConfig.cookie = cookieJSON.cookie;
+                                        headerConfig["user-agent"]= cookieJSON.userAgent;
+                                    }
+                                }
+
+                                const headers = Object.entries(headerConfig);
 
                                 const headers2 = Object.entries({
                                     "sec-fetch-site": "none",
@@ -515,7 +632,7 @@ function go() {
                         }
                     )
                     .on("error", (err) => {
-                        console.log(`[ERROR] TLS socket error: ${err.message}`);
+                        // console.log(`[ERROR] TLS socket error: ${err.message}`);
                         SocketTLS.destroy();
                     });
             });

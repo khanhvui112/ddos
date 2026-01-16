@@ -507,7 +507,7 @@ async function main(reserve) {
                 )}: ${colors.yellow(userAgent)}`
             );
 
-            function getCookieFromArr(proxyHost) {
+            /*function getCookieFromArr(proxyHost) {
                 let lstCookies = [
                     {
                         "host": "103.125.190.128",
@@ -11321,7 +11321,7 @@ async function main(reserve) {
                 if (name) {
                     cusCookie[name] = String(value);
                 }
-            }
+            }*/
             const cookiesNew = Object.entries(cusCookie).map(([name, value]) => {
                 return {
                     name,                        // tên cookie

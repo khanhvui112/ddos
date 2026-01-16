@@ -1,6 +1,12 @@
 const {connect} = require("puppeteer-real-browser");
 const {FingerprintInjector} = require("fingerprint-injector");
 const {FingerprintGenerator} = require("fingerprint-generator");
+const fs = require("fs");
+const path = require("path");
+const fsp = require("fs/promises");
+const INPUT_FILE = path.join(__dirname, "1000_ger.txt");
+const LIVE_OUT_FILE = path.join(__dirname, "live_1000_ger.txt");
+
 
 function random_int(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -57,12 +63,27 @@ async function getCookieCloudflare(proxy) {
     var userAgent = await page.evaluate(() => {
         return navigator.userAgent;
     });
-
+    // cookie: 'ftnYJon93BPs9l0sQBU2Sy5tgw9KqQNogYNp61Y9ZW0-1759402808-1.2.1.1-y_BFOg_RHgMgf.nHT.KzUQEPHLQso1IPP5EGbJJujfoaSY32EYzDlCvm19ek_Bg3j3A1vRgv4TB7GDIdqFF7_kY92UACUu1.Vv.f19G9cutPk3_RaLNaE8Y9WHDu1qXJpp6VDYEjcdFq2TxcN4tlFdqUqWjNyO6x0FWnQ1A2vSqZE3TUgwuN58x8UDlk9X_dv.XDktSGlsNzbTs7uv..m2cRuoj2uVcbwlXNCxNOZCc',
+    //     userAgent: ''
+    const iso = '2026-10-02T11:25:10.557Z';
+    const expiresInSeconds = Math.floor(new Date(iso).getTime() / 1000);
     userAgent = userAgent.replace("Headless", "");
-    await page.setUserAgent(userAgent);
+    const cookie1 = {
+        name: "cf_clearance",
+        value: "cZ_4086OXWPEahgbcHZO_dQETeXqm9CNoQOTAmGvAcc-1759404310-1.2.1.1-KLP5aS5MIwS8EMjItgKuAth13Rg4HrLnvv9b.ttvX_4ivxYoUpvf9823mI670XtnlQGgtuiHAV5qGv2IYaqXPMi6nVgzM1fhotg64pbS_qJUcI_VsGu8MwHtVXDJJg2x0lJD9YH9BQ.zW8BP5f0vKGu4pgOyEDrZiNKcEWGRwtZXUgd_CRq5gxtA8p1TqfhIWYhHYqHjuctYbeAVOIf.OruCkm._mZxE5QQmqumivlk",
+        domain: ".bavarian-outfitters.de",
+        path: "/",
+        httpOnly: true,
+        secure: true,
+        sameSite: "None",
+        expires: expiresInSeconds
+    };
+
+    await page.setCookie(cookie1);
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36');
 
     // Điều hướng
-    await page.goto("https://taphoammo.net/", {
+    await page.goto("https://bavarian-outfitters.de/", {
         waitUntil: "domcontentloaded",
         timeout: 2000000,
     });
@@ -90,28 +111,82 @@ async function getCookieCloudflare(proxy) {
         });
     }
 
-    const cookie = await getCookies(page);
-    console.log("Result:", cookie);
-
-    if (cookie) {
-        await browser.close();
-        return cookie;
-    }
+    // const cookie = await getCookies(page);
+    // console.log("Result:", cookie);
+    //
+    // if (cookie) {
+    //     await browser.close();
+    //     return cookie;
+    // }
     return null;
 }
 
 // ví dụ proxy thường
-getCookieCloudflare("209.50.184.106:3129");
+// getCookieCloudflare("65.111.30.248:3129");
 
-// ví dụ proxy có auth
-// getCookieCloudflare("host:port:user:pass");
-let t = {
-    "method": "turnstile",
-    "key": "YOUR API KEY",
-    "sitekey": "0x4AAAAAAADnPIDROrmt1Wwj",
-    "pageurl": "https://taphoammo.net/",
-    "data": "9872ebaa0b96f890",
-    "pagedata": "fjjNGP9uCyglBiPTAe3sxZSac6N2R6BDA24mGprhEpA-1759226924-1.3.1.1-Bwqgq4YWsSu2wsulCauRH20tQYxF37eNXtixqYPsVSK77NWsqaH.0NDA6yIwzePYYqgDz5jX1dIDyc4Aphs8kkawiJUWTnnD2kRosUNtNiFte10n2_6dswRNo.gcqM72ACRq5Cr9DtaL5g3Ub8alrBgH_7ujkXJVdnR6b8B_mHcQqpg2YnSB1UU0jfBlEe4YXzT31P_dH2vHbtYGwvet4GZ5KDIGFqlV4Jka9_xSSLMgRRdD5KV56A9DTQEEwAgoW1fwyPjsjo3TvPcWFc7Lx53aZKVhuOQEqWPBHq.kz1yRbdXwWUP3CJXcUxW3cnY9CKiN1TmG47ai99ba97tt1jrPTFtRx0N4PG4nZucTQ8WPw2oIQPMG4G.ku8RHfQ4A",
-    "action": "managed",
-    "json": 1
+// đọc proxy từ file txt
+function readProxies() {
+    return fs.readFileSync(proxyFile, "utf8")
+        .split("\n")
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
 }
+
+// hàm lưu cookie vào file json (append từng dòng)
+function saveCookie(proxy, cookie) {
+    let data = [];
+    if (fs.existsSync(outputFile)) {
+        try {
+            data = JSON.parse(fs.readFileSync(outputFile, "utf8"));
+        } catch (e) {
+            console.error("Lỗi đọc cookies.json:", e);
+        }
+    }
+
+    // tách host (trường hợp có user/pass thì chỉ lấy host)
+    const host = proxy.split(":")[0];
+
+    data.push({
+        host: host,
+        cookie: cookie.cookie,
+        "user-agent": cookie.userAgent,
+    });
+
+    fs.writeFileSync(outputFile, JSON.stringify(data, null, 2), "utf8");
+    console.log("✅ Lưu thành công cookie cho proxy:", host);
+}
+
+// chạy toàn bộ proxy
+async function run() {
+    const exists = await fsp.stat(INPUT_FILE).then(() => true).catch(() => false);
+    if (!exists) {
+        console.error(`Input file not found: ${INPUT_FILE}`);
+        return;
+    }
+
+    const raw = await fsp.readFile(INPUT_FILE, "utf8");
+    const proxiesRaw = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    if (proxiesRaw.length === 0) {
+        console.error("No proxies in input file.");
+        return;
+    }
+
+    const proxies = Array.from(new Set(proxiesRaw));
+
+    for (const proxy of proxies) {
+        try {
+            console.log("🔎 Đang xử lý proxy:", proxy);
+            const cookie = await getCookieCloudflare(proxy);
+            if (cookie) {
+                saveCookie(proxy, cookie);
+            } else {
+                console.log("⚠️ Không lấy được cookie:", proxy);
+            }
+        } catch (err) {
+            console.error("❌ Lỗi với proxy", proxy, err.message);
+        }
+    }
+}
+
+// run();
+getCookieCloudflare('rp.scrapegw.com:6060:vviu6vbhat33r76-session-2zqtmkv95x-lifetime-120:hu5j45zeu7ezs11')

