@@ -333,7 +333,7 @@ function msUntilNext(hour, minute = 0) {
     if (target <= now) target.setDate(target.getDate() + 1);
     return target - now;
 }
-let host = 'https://bavarian-traditional.de/';
+let host = 'https://api-v2.ticketbox.vn/gin/api/v2/events/25528';
 run(host)
 // attack(host);
 // const delay = msUntilNext(13, 0); // 13:00

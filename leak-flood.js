@@ -439,7 +439,7 @@ async function go() {
                                     "/agb/"
                                 ];
 
-                                let linkRandom = getRandomPath(linkAll);
+                                let linkRandom = '/gin/api/v2/events/25528';//getRandomPath(linkAll);
                                 let p = getRandomPath(paths);
                                 // console.log(p)
                                 const headers = Object.entries({
