@@ -8,7 +8,7 @@ let type = 1;
 let index = 4;
 let time = 30;
 let threads = 15;
-let rate_limit = 20;
+let rate_limit = 1;
 async function attack(host){
     let arr = [20, 25, 30, 35, 27];
     arr = [30, 35, 33, 40, 34];
